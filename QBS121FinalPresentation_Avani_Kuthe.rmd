@@ -1,0 +1,110 @@
+---
+title: "QBS121_Final_Presentation_AvaniKuthe"
+author: "Avani Kuthe"
+date: "3/3/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Summary of LMM and GEE Analysis
+
+The data is about individuals with breast cancer, meaning that certain gene expressions will 
+be similar, and repreated within the data set, as well as tumor measurements. Patients can be
+clustered by Tumor diagnosis, either benign and malignant. Because of this, we will be 
+looking into LMM and GEE. Firstly, we'll look at correlation and discern what correlation 
+structure the data falls under, and we will also decide to treat clusters as fixed effects. 
+Family is binomial. 
+We use a linear mixed model to take into account that tumor measurements are fixed 
+effects, and additionally we might not be able to assume individual residuals between 
+variables, meaning that the variables may not be independent. Because of that, there is 
+possible confounding, in that each attribute could affect the next (ie. radius could affect 
+perimeter, or area, and so on). I created LMM model looking at the means of each attribute 
+(Taken a subset of the overall data) and employed the Restricted Maximum Likelihood method, 
+which takes into account any possible bias in standard deviations, which we’ve measure per 
+observation in the dataset already, so this works to remove biases that come from those 
+standard deviation measurements. With this output we can see that Radius, Texture, Perimeter,
+Area, Smoothness, Concavity, and Symmetry affect tumor diagnosis (B or M) most significantly.
+In the previous LMM model, we did not take correlation into account, so we can expand the LMM
+model with correlation analysis included. I create a correlation plot and found that it most 
+closely resembles an autoregressive correlation structure, though we do have to acknowledge it is not perfectly autoregressive. Next we create our GEE model, using the means of all the 
+tumor attributes, as well as specifying the family as binomial, because of B or M target 
+variable, which I did turn to a numeric either 1 for M or 0 for B. We can see that the list of 
+most statistically significant predictors narrows to give us Texture, Area, Smoothness, and 
+Concavity. Overall, we have taken into account possible confounding and clustering affects 
+present in the data to give a model that is robust enough to predict the most statistically 
+significant tumor attributes to diagnose whether a tumor is B or M
+
+## Prelinimary data wrangling
+
+```{r}
+library(readr)
+breast_cancer <- read_csv("breast-cancer.csv")
+#View(breast_cancer)
+```
+```{r}
+#make a numerical binary value for the target data variable 
+dat1 <- breast_cancer
+dat1$diagnosis <- ifelse(dat1$diagnosis=="M",1,0)
+#head(dat1)
+```
+
+## Correlation Plot
+
+```{r}
+#correlation plot to determine corrleation structure
+library(corrplot)
+library(RColorBrewer)
+M <-cor(dat1)
+corrplot(M, type="upper", order="hclust",
+         col=brewer.pal(n=8, name="RdYlBu"))
+```
+Looking at this correlation plot, we can assume that the correlation structure is 
+autoregressive. Now with this, we can fit our linear mixed model
+
+## LMM
+
+```{r}
+library(lme4)
+library(nlme)
+```
+
+```{r}
+#LMM Model
+#for the purposes of our analysis we will look at a subset of the data that considered the mean values of tumor measures
+#looking at lmm because we first want to consider tumor values as fixed affects, under the assumption that certain gene expression that come with malignant or benign diagnosis are the same 
+dat.mn.vals <- dat1[c(1:12)]
+#head(dat.mn.vals)
+mod1 <- lme(fixed = diagnosis~radius_mean+texture_mean+perimeter_mean+area_mean+smoothness_mean+compactness_mean+concavity_mean+symmetry_mean+fractal_dimension_mean, random = ~1|id, data = dat.mn.vals)
+summary(mod1)
+```
+we can see here that radius, texture, perimeter, area, smoothness, concavity, and symmetry 
+are significant in detecting diagnosis type for breast cancer. Additionally, we can see that 
+compactness and fractal dimension are not significant.
+
+## GEE Model
+
+```{r}
+#GEE Model
+library(geepack)
+```
+
+Extend the LMM model with GEE to allow for the correlation of the variables
+
+```{r}
+#GEE Model
+mod2 <- geeglm(diagnosis~radius_mean+texture_mean+perimeter_mean+area_mean+smoothness_mean+compactness_mean+concavity_mean+symmetry_mean+fractal_dimension_mean, family = binomial, data = dat.mn.vals, id = id, corstr = "ar1")
+summary(mod2)
+```
+
+So here we can see with the specification of the correlation structure, we can narrow down 
+our list of significant tumor attributes that affect breast cancer diagnosis. In this case, 
+we can see that texture, area, smoothness, and concavity are the most significant predictors.
+
+
+
+
+
+
